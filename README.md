@@ -1,6 +1,53 @@
-## Kiến trúc nội bộ của một Argo CD Application
 
-Trong Argo CD, một `Application` không chạy “một mình”, mà dựa trên nhiều thành phần dịch vụ bên trong namespace `argocd`. Dưới đây là các thành phần chính, vai trò và cách chúng liên quan với nhau.
+# Kiến trúc Argo CD chạy trên Amazon EKS
+
+Tài liệu này mô tả kiến trúc Argo CD được triển khai trên **Amazon EKS**, cách các thành phần của Argo CD hoạt động và tương tác với Git, ECR và các ứng dụng trong cluster.
+
+---
+
+## kiến trúc tổng quan
+
+```text
+                  +-----------------------------+
+                  |          Git Repo           |
+                  |  (GitOps manifests/Helm)    |
+                  +--------------+--------------+
+                                 |
+                                 | (Git clone / fetch)
+                                 v
++--------------------------------------------------------------+
+|                      Amazon EKS Cluster                      |
+|                                                              |
+|  +----------------- Namespace: argocd -------------------+   |
+|  |                                                      |   |
+|  |  +---------------------+    +----------------------+  |   |
+|  |  |  argocd-server      |<-->|  argocd-redis        |  |   |
+|  |  |  (UI, API, Auth)    |    |  (cache)             |  |   |
+|  |  +----------+----------+    +----------+-----------+  |   |
+|  |             |                         ^              |   |
+|  |             v                         |              |   |
+|  |  +---------------------+    +---------+-----------+  |   |
+|  |  |  argocd-application |    |  argocd-repo-server |  |   |
+|  |  |  -controller        |<-->|  (Git, Helm,        |  |   |
+|  |  |  (reconcile, sync)  |    |   Kustomize render) |  |   |
+|  |  +----------+----------+    +---------------------+  |   |
+|  +-------------|----------------------------------------+   |
+|                | (apply manifests via K8s API)              |
+|                v                                            |
+|  +----------------- Application Namespaces --------------+  |
+|  |  Namespace: shopping-cart                             |  |
+|  |    - Deployments / Pods / Services                    |  |
+|  |      (ứng dụng Java, v.v.)                            |  |
+|  |                                                      |  |
+|  |  Namespace: gitlab / jenkins / sonarqube (nếu có)    |  |
+|  |    - Các app khác do ArgoCD quản lý                  |  |
+|  +------------------------------------------------------+  |
++--------------------------------------------------------------+
+
+                +-------------------------------+
+                |  Amazon ECR (Container Images)|
+                +-------------------------------+
+```
 
 ### 1. Dịch vụ chính (Services)
 
